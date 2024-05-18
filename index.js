@@ -21,11 +21,17 @@ async function run() {
   try {
     await client.connect();
     const menuCollection = client.db("bistroDb").collection("menu");
+    const reviewsCollection = client.db("bistroDb").collection("reviews");
 
     /************ CRUD **************/
     // add menu
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
+      res.json(result);
+    });
+    // add review
+    app.get("/review", async (req, res) => {
+      const result = await reviewsCollection.find().toArray();
       res.json(result);
     });
     /************ CRUD **************/
