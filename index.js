@@ -40,6 +40,15 @@ async function run() {
         next();
       });
     };
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const user = await usersCollection.findOne({ email: email });
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(401).send({ message: "forbidden access" });
+      }
+      next();
+    };
     /************ MIDDLEWARE API **************/
 
     /************ JWT API **************/
@@ -56,8 +65,21 @@ async function run() {
     /************ JWT API **************/
 
     /************ USER API **************/
+    // get role
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "unauthorized access" });
+      }
+      const user = await usersCollection.findOne({ email: email });
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin" ? true : false;
+      }
+      res.send({ admin });
+    });
     // all user
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
@@ -73,28 +95,25 @@ async function run() {
       res.send(result);
     });
     // delete user
-    app.delete("/users/:id", async (req, res) => {
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.deleteOne({
         _id: new ObjectId(req.params.id),
       });
       res.send(result);
     });
     // update user
-    app.put("/users/:id", async (req, res) => {
-      const result = await usersCollection.updateOne(
-        { _id: req.params.id },
-        { $set: req.body }
-      );
-      res.json(result);
-    });
-    // update user
-    app.patch("/users/admin/:id", async (req, res) => {
-      const result = await usersCollection.updateOne(
-        { _id: new ObjectId(req.params.id) },
-        { $set: { role: "admin" } }
-      );
-      res.json(result);
-    });
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { $set: { role: "admin" } }
+        );
+        res.json(result);
+      }
+    );
     /************ USER API **************/
 
     /************ MENU API **************/
@@ -126,14 +145,6 @@ async function run() {
       });
       res.send(result);
     });
-    // // update carts
-    // app.put("/carts/:id", async (req, res) => {
-    //   const result = await cartsCollection.updateOne(
-    //     { _id: req.params.id },
-    //     { $set: req.body }
-    //   );
-    //   res.json(result);
-    // });
     /************ MENU API **************/
 
     await client.db("admin").command({ ping: 1 });
