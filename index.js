@@ -3,6 +3,7 @@ const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -25,6 +26,7 @@ async function run() {
     const menuCollection = client.db("bistroDb").collection("menu");
     const reviewsCollection = client.db("bistroDb").collection("reviews");
     const cartsCollection = client.db("bistroDb").collection("carts");
+    const paymentCollection = client.db("bistroDb").collection("payments");
 
     /************ MIDDLEWARE API **************/
     const verifyToken = (req, res, next) => {
@@ -118,6 +120,35 @@ async function run() {
 
     /************ MENU API **************/
     // add menu
+    app.post("/menu", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await menuCollection.insertOne(req.body);
+      res.send(result);
+    });
+    // delete menu
+    app.delete("/menu/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await menuCollection.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
+    //update menu
+    app.patch("/menu/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await menuCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: req.body }
+      );
+      res.json(result);
+    });
+
+    // get menu
+    app.get("/menu/:id", async (req, res) => {
+      const result = await menuCollection.findOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
+
+    // get menu
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
       res.send(result);
@@ -144,6 +175,32 @@ async function run() {
         _id: new ObjectId(req.params.id),
       });
       res.send(result);
+    });
+    // payment
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+    // add payment
+    app.post("/payment", async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+      // delete add cart item
+      const query = {
+        _id: {
+          $in: payment.cartIds.map((id) => new ObjectId(id)),
+        },
+      };
+      const deleteResult = await cartsCollection.deleteMany(query);
+      res.send({ paymentResult, deleteResult });
     });
     /************ MENU API **************/
 
