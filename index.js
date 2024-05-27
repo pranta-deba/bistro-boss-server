@@ -202,6 +202,16 @@ async function run() {
       const deleteResult = await cartsCollection.deleteMany(query);
       res.send({ paymentResult, deleteResult });
     });
+    // get payment
+    app.get("/payment/:email", verifyToken, async (req, res) => {
+      if (req.params.email !== req.decoded.email) {
+        return res.status(403).send({ message: "unauthorized access" });
+      }
+      const result = await paymentCollection
+        .find({ email: req.params.email })
+        .toArray();
+      res.send(result);
+    });
     /************ MENU API **************/
 
     await client.db("admin").command({ ping: 1 });
